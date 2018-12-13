@@ -12,7 +12,7 @@
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
+                <data android:host="mainactivity" android:scheme="camera.nubia.cn.alarmclock" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
