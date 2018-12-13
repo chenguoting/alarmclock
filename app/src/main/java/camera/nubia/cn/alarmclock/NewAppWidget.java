@@ -15,6 +15,8 @@ import android.util.Log;
 import android.widget.RemoteViews;
 
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.Date;
 
 /**
  * Implementation of App Widget functionality.
@@ -39,7 +41,7 @@ public class NewAppWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
-        Log.i(TAG, "onUpdate "+appWidgetManager+" "+context);
+        Log.i(TAG, "onUpdate");
         this.appWidgetManager = appWidgetManager;
         this.context = context;
         init();
@@ -84,9 +86,18 @@ public class NewAppWidget extends AppWidgetProvider {
         mHandlerThread.quitSafely();
     }
 
+    static int[] soundId = new int[]{
+            R.raw.tesy, //8:30
+            R.raw.tesy, //9:00
+            R.raw.tesy, //9:30
+            R.raw.tesy, //10:00
+    };
+    int sound_830 = 0;
+
     final static int msg_play_2030 = 0;
     HandlerThread mHandlerThread;
     WidgetHandler mHandler;
+    MediaPlayer mediaPlayer;
     class WidgetHandler extends Handler {
         public WidgetHandler(Looper looper) {
             super(looper);
@@ -99,10 +110,14 @@ public class NewAppWidget extends AppWidgetProvider {
                     Log.i(TAG, "msg_play_2030");
                     long cur = System.currentTimeMillis();
                     long min = cur / 1000 / 60;
-                    long hour = min / 60;
+                    long hour = min / 60 + 8; //北京时间所以加8
                     updateText((hour%24)+":"+(min%60));
-                    playTipSound();
-                    mHandler.sendEmptyMessageDelayed(msg_play_2030, 1000);
+                    long alarmTime = msg.getData().getLong("alarm_time");
+                    if(cur >= alarmTime && alarmTime > 0) {
+                        playTipSound(alarmTime);
+                    }
+                    long next = (min + 1) * 60 * 1000;
+                    mHandler.sendEmptyMessageAtTime(msg_play_2030, cur+60*1000);
                     break;
             }
         }
@@ -120,12 +135,15 @@ public class NewAppWidget extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(componentName, views);
     }
 
-    private void playTipSound() {
+    private void playTipSound(long time) {
         if(context == null) {
             return;
         }
         try {
-            MediaPlayer mediaPlayer = new MediaPlayer();
+            if(mediaPlayer != null) {
+                mediaPlayer.release();
+            }
+            mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(context.getResources().openRawResourceFd(R.raw.tesy).getFileDescriptor());
             mediaPlayer.prepare();
             mediaPlayer.start();
