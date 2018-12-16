@@ -23,6 +23,7 @@ import java.io.IOException;
  */
 public class NewAppWidget extends AppWidgetProvider {
     private final static String TAG = "NewAppWidget";
+    private final static int requestCode = 1014;
     AppWidgetManager appWidgetManager;
     Context context;
     SharedPreferences sharedPreferences;
@@ -34,10 +35,9 @@ public class NewAppWidget extends AppWidgetProvider {
         // Construct the RemoteViews object
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
         long cur = System.currentTimeMillis();
-        long min = cur / 1000 / 60;
-        long hour = min / 60 + 8; //北京时间所以加8
-        views.setTextViewText(R.id.appwidget_text, (hour%24)+":"+(min%60));
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, 1014, new Intent(context, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
+        BeiJingDate date = new BeiJingDate(cur);
+        views.setTextViewText(R.id.appwidget_text, date.getHour()+":"+date.getMin());
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, requestCode, new Intent(context, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
         views.setOnClickPendingIntent(R.id.appwidget_text, pendingIntent);
         // Instruct the widget manager to update the widget
         appWidgetManager.updateAppWidget(appWidgetId, views);
@@ -100,7 +100,6 @@ public class NewAppWidget extends AppWidgetProvider {
             R.raw.sound_2200, //10:00
             R.raw.sound_2230
     };
-    int sound_830 = 0;
 
     final static int msg_update = 0;
     final static String ALARM_TIME = "alarm_time";
@@ -120,21 +119,31 @@ public class NewAppWidget extends AppWidgetProvider {
                     //boolean alarm = sharedPreferences.getBoolean(MainActivity.ALARM, false);
                     //Log.i(TAG, "msg_update "+alarm);
                     long cur = System.currentTimeMillis();
-                    long min = cur / 1000 / 60;
-                    long hour = min / 60 + 8; //北京时间所以加8
-                    if(hour != mHour || min != mMin) {
-                        updateText((hour % 24) + ":" + (min % 60));
-                        mHour = hour;
-                        mMin = min;
+                    BeiJingDate date = new BeiJingDate(cur);
+                    if(date.getHour() != mHour || date.getMin() != mMin) {
+                        mHour = date.getHour();
+                        mMin = date.getMin();
+                        try {
+                            updateText(mHour + ":" + mMin);
+                        } catch (Exception e) {
+                            Log.e(TAG, "updateText fail "+e.getMessage());
+                        }
                     }
                     long alarmTime = msg.getData().getLong(ALARM_TIME);
                     //Log.i(TAG, "comp "+alarmTime+" "+cur+" "+(cur-alarmTime));
-                    if(cur >= alarmTime && alarmTime > 0) {
-                        playTipSound(alarmTime);
+                    long tenMin = BeiJingDate.getLong(0, 10, 0, 0);
+                    if(cur >= alarmTime //时间到达
+                            && cur < alarmTime + tenMin //由于休眠导致时间过去太久了
+                            && alarmTime > 0) { //第一次消息
+                        try {
+                            playTipSound(alarmTime);
+                        } catch (Exception e) {
+                            Log.e(TAG, "playTipSound fail "+e.getMessage());
+                        }
                     }
-                    long start = ((hour/24*24+20-8)*60+30)*60*1000; //20:30
-                    long end = ((hour/24*24+22-8)*60+30)*60*1000; //22:30
-                    long interval = 30*60*1000;
+                    long start = date.getTime(20, 30, 0, 0); //20:30
+                    long end = date.getTime(22, 30, 0, 0); //22:30
+                    long interval = BeiJingDate.getLong(0, 30, 0, 0);
                     for(long time=start;time<=end;time+=interval) {
                         if(cur<time) {
                             alarmTime = time;
