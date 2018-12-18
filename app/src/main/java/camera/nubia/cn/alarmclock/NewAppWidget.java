@@ -93,12 +93,12 @@ public class NewAppWidget extends AppWidgetProvider {
         mHandlerThread.quitSafely();
     }
 
-    static int[] soundId = new int[]{
-            R.raw.sound_2030, //8:30
-            R.raw.sound_2100, //9:00
-            R.raw.sound_2130, //9:30
-            R.raw.sound_2200, //10:00
-            R.raw.sound_2230
+    static int[][] soundId = new int[][]{
+            {20, 30, R.raw.sound_2030}, //20:30
+            {21, 00, R.raw.sound_2100}, //21:00
+            {21, 30, R.raw.sound_2130}, //21:30
+            {22, 00, R.raw.sound_2200}, //22:00
+            {22, 30, R.raw.sound_2230}  //22:30
     };
 
     final static int msg_update = 0;
@@ -116,46 +116,23 @@ public class NewAppWidget extends AppWidgetProvider {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case msg_update:
-                    //boolean alarm = sharedPreferences.getBoolean(MainActivity.ALARM, false);
-                    //Log.i(TAG, "msg_update "+alarm);
                     long cur = System.currentTimeMillis();
                     BeiJingDate date = new BeiJingDate(cur);
                     if(date.getHour() != mHour || date.getMin() != mMin) {
                         mHour = date.getHour();
                         mMin = date.getMin();
-                        try {
-                            updateText(mHour + ":" + mMin);
-                        } catch (Exception e) {
-                            Log.e(TAG, "updateText fail "+e.getMessage());
-                        }
+                        updateText(mHour + ":" + mMin);
                     }
                     long alarmTime = msg.getData().getLong(ALARM_TIME);
-                    //Log.i(TAG, "comp "+alarmTime+" "+cur+" "+(cur-alarmTime));
-                    long tenMin = BeiJingDate.getLong(0, 10, 0, 0);
+                    long threshold = BeiJingDate.getLong(0, 3, 0, 0);
                     if(cur >= alarmTime //时间到达
-                            && cur < alarmTime + tenMin //由于休眠导致时间过去太久了
-                            && alarmTime > 0) { //第一次消息
-                        try {
-                            playTipSound(alarmTime);
-                        } catch (Exception e) {
-                            Log.e(TAG, "playTipSound fail "+e.getMessage());
-                        }
-                    }
-                    long start = date.getTime(20, 30, 0, 0); //20:30
-                    long end = date.getTime(22, 30, 0, 0); //22:30
-                    long interval = BeiJingDate.getLong(0, 30, 0, 0);
-                    for(long time=start;time<=end;time+=interval) {
-                        if(cur<time) {
-                            alarmTime = time;
-                            break;
-                        }
-                    }
-                    if(cur > alarmTime) {
-                        alarmTime = 0;
+                            && cur < alarmTime + threshold //由于休眠导致时间过去太久了，或者alarmTime为0
+                            ) {
+                        playTipSound(alarmTime);
                     }
                     Message message = mHandler.obtainMessage(msg_update);
                     Bundle bundle = new Bundle();
-                    bundle.putLong(ALARM_TIME, alarmTime);
+                    bundle.putLong(ALARM_TIME, getAlarmTime(cur, date));
                     message.setData(bundle);
                     mHandler.removeMessages(msg_update);
                     mHandler.sendMessageDelayed(message, 1000);
@@ -164,49 +141,66 @@ public class NewAppWidget extends AppWidgetProvider {
         }
     }
 
+    private long getAlarmTime(long cur, BeiJingDate date) {
+        long start = date.getTime(20, 30, 0, 0); //20:30
+        long end = date.getTime(22, 30, 0, 0); //22:30
+        long interval = BeiJingDate.getLong(0, 30, 0, 0);
+        long alarmTime = 0;
+        for(long time=start;time<=end;time+=interval) {
+            if(cur<time) {
+                alarmTime = time;
+                break;
+            }
+        }
+        return alarmTime;
+    }
+
     private void updateText(String time) {
         if(context == null) {
             return;
         }
-        Log.i(TAG, "updateText "+time);
-        // Construct the RemoteViews object
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
-        views.setTextViewText(R.id.appwidget_text, time);
-        ComponentName componentName = new ComponentName(context, NewAppWidget.class);
-        // Instruct the widget manager to update the widget
-        appWidgetManager.updateAppWidget(componentName, views);
+        try {
+            Log.i(TAG, "updateText "+time);
+            // Construct the RemoteViews object
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
+            views.setTextViewText(R.id.appwidget_text, time);
+            ComponentName componentName = new ComponentName(context, NewAppWidget.class);
+            // Instruct the widget manager to update the widget
+            appWidgetManager.updateAppWidget(componentName, views);
+        } catch (Exception e) {
+            Log.e(TAG, "updateText fail "+e.getMessage());
+        }
     }
 
     private void playTipSound(long time) {
         if(context == null) {
             return;
         }
-        if(mediaPlayer != null) {
-            mediaPlayer.release();
-        }
-        int soundIndex;
-        long min = time / 1000 / 60;
-        long hour = min / 60 + 8; //北京时间所以加8
-        if(hour % 24 == 20) {
-            soundIndex = -1;
-        }
-        else if(hour % 24 == 21) {
-            soundIndex = 1;
-        }
-        else if(hour % 24 == 22) {
-            soundIndex = 3;
-        }
-        else {
-            return;
-        }
-        if(min % 60 == 30) {
-            soundIndex++;
-        }
-        Log.i(TAG, "playTipSound "+soundIndex);
-        boolean alarm = sharedPreferences.getBoolean(MainActivity.ALARM, false);
-        if(alarm) {
-            mediaPlayer = MediaPlayer.create(context, soundId[soundIndex]);
-            mediaPlayer.start();
+        try {
+            if(mediaPlayer != null) {
+                mediaPlayer.release();
+            }
+            int resId = 0;
+            BeiJingDate date = new BeiJingDate(time);
+            long min = date.getMin();
+            long hour = date.getHour();
+            for(int[] item : soundId) {
+                if(item[0] == hour && item[1] == min) {
+                    resId = item[2];
+                }
+            }
+            if(resId == 0) {
+                Log.e(TAG, "nuknow resId "+resId);
+                return;
+            }
+            Log.i(TAG, "playTipSound "+resId);
+            boolean alarm = sharedPreferences.getBoolean(MainActivity.ALARM, false);
+            if(alarm) {
+                mediaPlayer = MediaPlayer.create(context, resId);
+                mediaPlayer.start();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "playTipSound fail "+e.getMessage());
         }
     }
 }

@@ -5,6 +5,7 @@ public class BeiJingDate {
     private final static int MIN = 60*SEC;
     private final static int HOUR = 60*MIN;
     private final static int DAY = 60*HOUR;
+    private final static int BEI_JING = 8*60*60*1000;
 
     private long date;
     private long beiJingDate;
@@ -15,7 +16,7 @@ public class BeiJingDate {
     private long day;
     public BeiJingDate(long date) {
         this.date = date;
-        beiJingDate = date + 8*60*60*1000;
+        beiJingDate = date + BEI_JING;
         ms = (int) (beiJingDate % 1000);
         sec = (int) (beiJingDate / SEC % 60);
         min = (int) (beiJingDate / MIN % 60);
@@ -32,7 +33,7 @@ public class BeiJingDate {
     }
 
     public long getTime(int hour, int min, int sec, int ms) {
-        return day*DAY + hour*HOUR + min*MIN + sec*SEC + ms;
+        return day*DAY + hour*HOUR + min*MIN + sec*SEC + ms - BEI_JING;
     }
 
     public static long getLong(int hour, int min, int sec, int ms) {
