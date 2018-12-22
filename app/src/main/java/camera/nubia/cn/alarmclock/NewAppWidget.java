@@ -53,7 +53,7 @@ public class NewAppWidget extends AppWidgetProvider {
             updateAppWidget(context, appWidgetManager, appWidgetId);
         }
         mHandler.removeMessages(msg_update);
-        mHandler.sendEmptyMessageDelayed(msg_update, 1000);
+        mHandler.sendEmptyMessageDelayed(msg_update, REFRESH_INTERVAL);
     }
 
     @Override
