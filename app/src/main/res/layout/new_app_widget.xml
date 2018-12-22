@@ -17,7 +17,6 @@
         android:layout_alignBottom="@id/background"
         android:contentDescription="time"
         android:gravity="center"
-        android:text="99:99"
         android:textColor="#ffffff"
         android:textSize="24sp"
         android:textStyle="bold|italic" />

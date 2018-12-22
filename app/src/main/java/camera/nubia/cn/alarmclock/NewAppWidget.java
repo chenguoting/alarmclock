@@ -16,27 +16,25 @@ import android.os.Message;
 import android.util.Log;
 import android.widget.RemoteViews;
 
-import java.io.IOException;
-
 /**
  * Implementation of App Widget functionality.
  */
 public class NewAppWidget extends AppWidgetProvider {
     private final static String TAG = "NewAppWidget";
     private final static int requestCode = 1014;
-    AppWidgetManager appWidgetManager;
-    Context context;
-    SharedPreferences sharedPreferences;
-    boolean isEnabled = false;
+    private final static int REFRESH_INTERVAL = 1000;
+    private AppWidgetManager appWidgetManager;
+    private Context context;
+    private SharedPreferences sharedPreferences;
+    private boolean isInit = false;
+    private RemoteViews views;
 
-    static void updateAppWidget(Context context, AppWidgetManager appWidgetManager,
+    private void updateAppWidget(Context context, AppWidgetManager appWidgetManager,
                                 int appWidgetId) {
 
-        // Construct the RemoteViews object
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
         long cur = System.currentTimeMillis();
         BeiJingDate date = new BeiJingDate(cur);
-        views.setTextViewText(R.id.appwidget_text, date.getHour()+":"+date.getMin());
+        views.setTextViewText(R.id.appwidget_text, date.getTimeStr());
         PendingIntent pendingIntent = PendingIntent.getActivity(context, requestCode, new Intent(context, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
         views.setOnClickPendingIntent(R.id.appwidget_text, pendingIntent);
         // Instruct the widget manager to update the widget
@@ -62,19 +60,10 @@ public class NewAppWidget extends AppWidgetProvider {
     public void onEnabled(Context context) {
         // Enter relevant functionality for when the first widget is created
         Log.i(TAG, "onEnabled");
+        this.context = context;
         init();
         mHandler.removeMessages(msg_update);
         mHandler.sendEmptyMessage(msg_update);
-    }
-
-    private void init() {
-        if(isEnabled) {
-            return;
-        }
-        isEnabled = true;
-        mHandlerThread = new HandlerThread("WidgetHandlerThread");
-        mHandlerThread.start();
-        mHandler = new WidgetHandler(mHandlerThread.getLooper());
     }
 
     @Override
@@ -84,16 +73,28 @@ public class NewAppWidget extends AppWidgetProvider {
         release();
     }
 
-    private void release() {
-        if(!isEnabled) {
+    private void init() {
+        if(isInit) {
             return;
         }
-        isEnabled = false;
+        isInit = true;
+        // Construct the RemoteViews object
+        views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
+        mHandlerThread = new HandlerThread("WidgetHandlerThread");
+        mHandlerThread.start();
+        mHandler = new WidgetHandler(mHandlerThread.getLooper());
+    }
+
+    private void release() {
+        if(!isInit) {
+            return;
+        }
+        isInit = false;
         mHandler.removeCallbacksAndMessages(null);
         mHandlerThread.quitSafely();
     }
 
-    static int[][] soundId = new int[][]{
+    private static int[][] soundId = new int[][]{
             {20, 30, R.raw.sound_2030}, //20:30
             {21, 00, R.raw.sound_2100}, //21:00
             {21, 30, R.raw.sound_2130}, //21:30
@@ -101,13 +102,13 @@ public class NewAppWidget extends AppWidgetProvider {
             {22, 30, R.raw.sound_2230}  //22:30
     };
 
-    final static int msg_update = 0;
-    final static String ALARM_TIME = "alarm_time";
-    HandlerThread mHandlerThread;
-    WidgetHandler mHandler;
-    MediaPlayer mediaPlayer;
-    long mHour, mMin;
-    class WidgetHandler extends Handler {
+    private final static int msg_update = 0;
+    private final static String ALARM_TIME = "alarm_time";
+    private HandlerThread mHandlerThread;
+    private WidgetHandler mHandler;
+    private MediaPlayer mediaPlayer;
+    private long mHour, mMin;
+    private class WidgetHandler extends Handler {
         public WidgetHandler(Looper looper) {
             super(looper);
         }
@@ -121,27 +122,28 @@ public class NewAppWidget extends AppWidgetProvider {
                     if(date.getHour() != mHour || date.getMin() != mMin) {
                         mHour = date.getHour();
                         mMin = date.getMin();
-                        updateText(mHour + ":" + mMin);
+                        updateText(date.getTimeStr());
                     }
                     long alarmTime = msg.getData().getLong(ALARM_TIME);
                     long threshold = BeiJingDate.getLong(0, 3, 0, 0);
-                    if(cur >= alarmTime //时间到达
-                            && cur < alarmTime + threshold //由于休眠导致时间过去太久了，或者alarmTime为0
+                    if(alarmTime <= cur //时间到达
+                            && cur <= alarmTime + threshold //由于休眠导致时间过去太久了，或者alarmTime为0
                             ) {
                         playTipSound(alarmTime);
                     }
                     Message message = mHandler.obtainMessage(msg_update);
                     Bundle bundle = new Bundle();
-                    bundle.putLong(ALARM_TIME, getAlarmTime(cur, date));
+                    bundle.putLong(ALARM_TIME, getAlarmTime(cur));
                     message.setData(bundle);
                     mHandler.removeMessages(msg_update);
-                    mHandler.sendMessageDelayed(message, 1000);
+                    mHandler.sendMessageDelayed(message, REFRESH_INTERVAL);
                     break;
             }
         }
     }
 
-    private long getAlarmTime(long cur, BeiJingDate date) {
+    private long getAlarmTime(long cur) {
+        BeiJingDate date = new BeiJingDate(cur);
         long start = date.getTime(20, 30, 0, 0); //20:30
         long end = date.getTime(22, 30, 0, 0); //22:30
         long interval = BeiJingDate.getLong(0, 30, 0, 0);
@@ -161,8 +163,6 @@ public class NewAppWidget extends AppWidgetProvider {
         }
         try {
             Log.i(TAG, "updateText "+time);
-            // Construct the RemoteViews object
-            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.new_app_widget);
             views.setTextViewText(R.id.appwidget_text, time);
             ComponentName componentName = new ComponentName(context, NewAppWidget.class);
             // Instruct the widget manager to update the widget
@@ -187,14 +187,15 @@ public class NewAppWidget extends AppWidgetProvider {
             for(int[] item : soundId) {
                 if(item[0] == hour && item[1] == min) {
                     resId = item[2];
+                    Log.i(TAG, "playTipSound "+hour+":"+min+" "+resId);
                 }
             }
             if(resId == 0) {
                 Log.e(TAG, "nuknow resId "+resId);
                 return;
             }
-            Log.i(TAG, "playTipSound "+resId);
             boolean alarm = sharedPreferences.getBoolean(MainActivity.ALARM, false);
+            Log.i(TAG, "alarm setting : "+alarm);
             if(alarm) {
                 mediaPlayer = MediaPlayer.create(context, resId);
                 mediaPlayer.start();

@@ -1,11 +1,13 @@
 package camera.nubia.cn.alarmclock;
 
+
+
 public class BeiJingDate {
-    private final static int SEC = 1000;
-    private final static int MIN = 60*SEC;
-    private final static int HOUR = 60*MIN;
-    private final static int DAY = 60*HOUR;
-    private final static int BEI_JING = 8*60*60*1000;
+    private final static long SEC = 1000;
+    private final static long MIN = 60*SEC;
+    private final static long HOUR = 60*MIN;
+    private final static long DAY = 24*HOUR;
+    private final static long BEI_JING = 8*HOUR;
 
     private long date;
     private long beiJingDate;
@@ -30,6 +32,24 @@ public class BeiJingDate {
 
     public int getMin() {
         return min;
+    }
+
+    public String getTimeStr() {
+        String str = "";
+        if(hour<10) {
+            str += "0"+hour;
+        }
+        else {
+            str += hour;
+        }
+        str += ":";
+        if(min<10) {
+            str += "0"+min;
+        }
+        else {
+            str += min;
+        }
+        return str;
     }
 
     public long getTime(int hour, int min, int sec, int ms) {
